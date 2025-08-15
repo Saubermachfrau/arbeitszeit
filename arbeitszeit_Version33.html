@@ -1,0 +1,800 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <title>Arbeitszeiterfassung</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <style>
+    body { font-family: sans-serif; background: #f7f7f7; margin: 0; padding: 0; }
+    .container { max-width: 500px; margin: 2em auto; padding: 2em; background: #fff; border-radius: 8px; box-shadow: 0 2px 8px #0001; }
+    h1 { text-align: center; }
+    .actions { display: flex; flex-direction: column; align-items: center; gap: 1em; margin-bottom: 1em; }
+    .actions-row { display: flex; gap: 1em; }
+    .actions-bottom { display: flex; gap: 1em; margin-top: 0.7em; align-items: center; }
+    button.kommen, button.gehen, button.frei, button.urlaub {
+      padding: 0.8em 2.4em;
+      font-size: 1.75em;
+      border-radius: 10px;
+      border: none;
+      cursor: pointer;
+    }
+    .kommen { background: #5cb85c; color: white; }
+    .gehen { background: #d9534f; color: white; }
+    .frei-btn, button.frei { background: #ffe066; color: #665c00; }
+    .urlaub-btn, button.urlaub { background: #8be08b; color: #155d15; }
+    .fromto-modal-bg { display:none; position:fixed; top:0;left:0;right:0;bottom:0; background:#0004; z-index:20; align-items:center; justify-content:center; }
+    .fromto-modal { background:#fff; border-radius:8px; padding:2em 1.2em 1.2em 1.2em; box-shadow:0 4px 20px #0003; min-width:220px; }
+    .fromto-modal label { font-weight:500; }
+    .fromto-modal input[type="date"] { font-size:1.1em; margin:0 0.4em;}
+    .fromto-modal .modal-actions { margin-top: 1.4em; text-align:right;}
+    .list { width: 100%; margin-top: 2em; border-collapse: collapse; }
+    .list th, .list td { padding: 0.5em; border: 1px solid #ddd; text-align: center; }
+    .edit-btn, .delete-btn { background: none; border: none; cursor: pointer; font-size: 1.1em; }
+    .edit-btn { color: #0275d8; }
+    .delete-btn { color: #d9534f; }
+    .note { font-size: 0.95em; color: #555; }
+    .tools { margin-top:1em; display: flex; flex-wrap: wrap; gap: 1em; }
+    .tools input[type="file"] { display:inline; }
+    .monat-auswahl, .bulk-delete-row { display: flex; align-items: center; gap: 0.6em; margin-bottom: 0.2em;}
+    .monat-auswahl label, .bulk-delete-row label { font-weight: 500; }
+    .bulk-delete-row { margin-top: 0.5em; margin-bottom: 1em; }
+    .bulk-delete-btn { background: #f0ad4e; color: white; font-size: 1em; border-radius: 5px; border: none; padding: 0.5em 1em; cursor: pointer; }
+    .checkbox-col { width: 40px; }
+    .summary-cell { text-align: right; color: #333; font-weight: bold; }
+    .tagstunden { font-size: 0.97em; color: #227; }
+    .leer { color: #bbb; font-style: italic; }
+    .frei-row td { background: #ffe066 !important; color: #665c00; font-weight: bold; }
+    .urlaub-row td { background: #c8f7c5 !important; color: #155d15; font-weight: bold; }
+    .tag-trenner td { border-top: 4px solid #888 !important; }
+    .tag-no-trenner td { border-top: 1px solid #ddd !important; }
+    .list tbody tr:first-child td { border-top-width: 1px !important; }
+    @media (max-width: 600px) {
+      .container { padding: 1em; }
+      .list { font-size: 0.95em; }
+      .tools { flex-direction: column; gap:0.5em;}
+      .monat-auswahl, .bulk-delete-row { flex-direction: column; align-items: flex-start; }
+      .checkbox-col { width: 24px; }
+      button.kommen, button.gehen, button.frei, button.urlaub { font-size: 1.5em; padding: 0.7em 1.5em; }
+      .summary-cell { font-size:1.1em;}
+      .fromto-modal { min-width: 0; }
+    }
+  </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+</head>
+<body>
+  <div class="container">
+    <h1>Arbeitszeiterfassung</h1>
+    <div class="actions">
+      <div class="actions-row">
+        <button class="kommen" onclick="addEntry('Kommen')">Kommen</button>
+        <button class="gehen" onclick="addEntry('Gehen')">Gehen</button>
+      </div>
+      <div class="actions-bottom">
+        <button class="frei" onclick="showFromToModal('Frei')">Frei</button>
+        <button class="urlaub" onclick="showFromToModal('Urlaub')">Urlaub</button>
+      </div>
+    </div>
+    <div class="monat-auswahl">
+      <label for="monatSelect">Monat:</label>
+      <select id="monatSelect" onchange="changeMonth()"></select>
+    </div>
+    <div class="bulk-delete-row">
+      <label>Einträge auswählen & löschen:</label>
+      <button class="bulk-delete-btn" onclick="bulkDelete()">Ausgewählte löschen</button>
+      <span id="bulkCount" style="font-size:0.95em; color:#555;"></span>
+    </div>
+    <h2>Monatsliste (<span id="month"></span>)</h2>
+    <table class="list" id="entryTable">
+      <thead>
+        <tr>
+          <th class="checkbox-col"><input type="checkbox" id="selectAll" onclick="toggleAllCheckboxes(this)"></th>
+          <th>Datum (Tag)</th>
+          <th>Zeit</th>
+          <th>Art</th>
+          <th>Notiz</th>
+          <th>Aktion</th>
+        </tr>
+      </thead>
+      <tbody id="entries"></tbody>
+    </table>
+    <div id="monatsstunden" class="summary-cell" style="margin: 1em 0 0 0;"></div>
+    <div class="tools">
+      <button onclick="exportCSV()">Als CSV exportieren</button>
+      <button onclick="exportPDF()">Als PDF exportieren</button>
+      <button onclick="deleteMonthEntries()" style="background:#d9534f; color:white;">Diesen Monat löschen</button>
+      <label style="font-size:1em; color:#0275d8; cursor:pointer;">
+        Importiere CSV
+        <input type="file" id="csvInput" accept=".csv" style="display:none" onchange="importCSV(event)">
+      </label>
+    </div>
+    <div style="margin-top:2em; font-size:0.97em; color:#888;">
+      <b>Hinweis:</b> Die Daten werden lokal auf deinem Gerät gespeichert (Browser LocalStorage).<br>
+      Über Export/Import kannst du Backups machen und auf andere Geräte übertragen. Lösche regelmäßig alte Monate, um Speicher zu sparen!
+    </div>
+  </div>
+
+  <!-- Von-bis Modal für Frei/Urlaub -->
+  <div class="fromto-modal-bg" id="fromto-modal-bg" onclick="closeFromToModal(event)">
+    <div class="fromto-modal" id="fromto-modal" onclick="event.stopPropagation();">
+      <form onsubmit="submitFromToModal(event)">
+        <input type="hidden" id="fromto-type" value="">
+        <div style="margin-bottom:1em;">
+          <label for="fromto-from">Von:</label>
+          <input type="date" id="fromto-from" required>
+          <span>bis</span>
+          <input type="date" id="fromto-to" required>
+        </div>
+        <div class="modal-actions">
+          <button type="button" onclick="closeFromToModal()">Abbrechen</button>
+          <button type="submit">Eintragen</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Edit Modal -->
+  <div id="editModal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:#0008; align-items:center; justify-content:center; z-index:10;">
+    <div style="background:#fff; padding:2em; border-radius:8px; max-width:350px; margin:auto;">
+      <h3>Eintrag bearbeiten</h3>
+      <label>Datum: <input type="date" id="editDate"></label><br><br>
+      <label>Zeit: <input type="time" id="editTime"></label><br><br>
+      <label>Art: 
+        <select id="editType">
+          <option value="Kommen">Kommen</option>
+          <option value="Gehen">Gehen</option>
+          <option value="Frei">Frei</option>
+          <option value="Urlaub">Urlaub</option>
+        </select>
+      </label><br><br>
+      <label>Notiz:<br>
+        <textarea id="editNote" rows="2" style="width:100%;"></textarea>
+      </label><br>
+      <div style="text-align:right; margin-top:1em;">
+        <button onclick="closeModal()">Abbrechen</button>
+        <button onclick="saveEdit()">Speichern</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const MONTHS_DE = ["Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"];
+    const DAYS_DE = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"];
+    const URLAUB_MINUTEN_PRO_TAG = 7 * 60 + 48;
+
+    let entries = [];
+    let editIndex = null;
+    let selectedMonth = null;
+    let selectedEntries = new Set();
+
+    // Hilfsfunktion: ISO nach dd.mm.yyyy
+    function formatDateDDMMYYYY(iso) {
+      const [y, m, d] = iso.split("-");
+      return `${d}.${m}.${y}`;
+    }
+
+    let fromToType = "";
+    function showFromToModal(type) {
+      fromToType = type;
+      document.getElementById('fromto-type').value = type;
+      const now = new Date();
+      const todayStr = now.toISOString().slice(0,10);
+      document.getElementById('fromto-from').value = todayStr;
+      document.getElementById('fromto-to').value = todayStr;
+      document.getElementById('fromto-modal-bg').style.display = 'flex';
+    }
+    function closeFromToModal(ev) {
+      if (ev) ev.preventDefault?.();
+      document.getElementById('fromto-modal-bg').style.display = 'none';
+    }
+    function isWeekend(dateStr) {
+      const d = new Date(dateStr);
+      return d.getDay() === 6 || d.getDay() === 0;
+    }
+    function submitFromToModal(ev) {
+      ev.preventDefault();
+      const type = document.getElementById('fromto-type').value;
+      const from = document.getElementById('fromto-from').value;
+      const to = document.getElementById('fromto-to').value;
+      if (!from || !to) { alert("Bitte 'von' und 'bis' angeben."); return false; }
+      if (from > to) { alert("'Von' darf nicht nach 'Bis' liegen."); return false; }
+      let count = 0;
+      let d = new Date(from);
+      const end = new Date(to);
+      while (d <= end) {
+        const dateStr = d.toISOString().slice(0,10);
+        if (type === "Frei") {
+          if (entries.some(e => e.date === dateStr && e.type !== "Frei")) { d.setDate(d.getDate()+1); continue; }
+          if (!entries.some(e => e.date === dateStr && e.type === "Frei")) {
+            entries.push({date: dateStr, time: "", type: "Frei", note: ""});
+            count++;
+          }
+        } else if (type === "Urlaub") {
+          if (isWeekend(dateStr)) {
+            if (entries.some(e => e.date === dateStr && e.type !== "Frei")) { d.setDate(d.getDate()+1); continue; }
+            if (!entries.some(e => e.date === dateStr && e.type === "Frei")) {
+              entries.push({date: dateStr, time: "", type: "Frei", note: ""});
+            }
+          } else {
+            if (entries.some(e => e.date === dateStr && e.type !== "Urlaub")) { d.setDate(d.getDate()+1); continue; }
+            if (!entries.some(e => e.date === dateStr && e.type === "Urlaub")) {
+              entries.push({date: dateStr, time: "", type: "Urlaub", note: ""});
+              count++;
+            }
+          }
+        }
+        d.setDate(d.getDate() + 1);
+      }
+      saveEntries();
+      renderMonthSelect();
+      renderEntries();
+      closeFromToModal();
+      alert(`Es wurden ${count} '${type}'-Tag${count===1?"":"e"} eingetragen.`);
+      return false;
+    }
+
+    function formatMonthText(ym) {
+      const [year, month] = ym.split("-");
+      return `${MONTHS_DE[parseInt(month,10)-1]} ${year}`;
+    }
+
+    function getAllMonths() {
+      const months = Array.from(new Set(entries.map(e => e.date.slice(0,7)))).sort((a, b) => b.localeCompare(a));
+      return months;
+    }
+
+    function getCurrentMonth() {
+      const now = new Date();
+      return `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+    }
+
+    function saveEntries() {
+      localStorage.setItem('arbeitszeit-entries', JSON.stringify(entries));
+    }
+    function loadEntries() {
+      entries = JSON.parse(localStorage.getItem('arbeitszeit-entries') || '[]');
+    }
+
+    function addEntry(type) {
+      const now = new Date();
+      let note = '';
+      if (type === 'Gehen') {
+        note = prompt('Notiz (optional):', '');
+        if (note === null) return;
+      }
+      const entry = {
+        date: now.toISOString().slice(0,10),
+        time: (type === "Frei" || type === "Urlaub") ? "" : now.toTimeString().slice(0,5),
+        type,
+        note: note || ''
+      };
+      if ((type === "Frei" || type === "Urlaub") && entries.some(e => e.date === entry.date && e.type === type)) {
+        alert(`Für diesen Tag ist bereits '${type}' eingetragen.`);
+        return;
+      }
+      if ((type === "Frei" || type === "Urlaub") && entries.some(e => e.date === entry.date && e.type !== type)) {
+        alert("Für diesen Tag ist bereits ein anderer Eintrag vorhanden.");
+        return;
+      }
+      entries.push(entry);
+      saveEntries();
+      if (!getAllMonths().includes(entry.date.slice(0,7))) {
+        selectedMonth = entry.date.slice(0,7);
+      }
+      renderMonthSelect();
+      renderEntries();
+    }
+
+    function renderMonthSelect() {
+      const select = document.getElementById('monatSelect');
+      const months = getAllMonths();
+      if (!selectedMonth) {
+        selectedMonth = months.includes(getCurrentMonth()) ? getCurrentMonth() : (months[0] || getCurrentMonth());
+      }
+      select.innerHTML = '';
+      if(months.length === 0) {
+        const opt = document.createElement('option');
+        opt.value = getCurrentMonth();
+        opt.text = formatMonthText(getCurrentMonth());
+        select.appendChild(opt);
+        selectedMonth = getCurrentMonth();
+      } else {
+        months.forEach(m => {
+          const opt = document.createElement('option');
+          opt.value = m;
+          opt.text = formatMonthText(m);
+          if (m === selectedMonth) opt.selected = true;
+          select.appendChild(opt);
+        });
+      }
+    }
+
+    function changeMonth() {
+      selectedMonth = document.getElementById('monatSelect').value;
+      selectedEntries.clear();
+      renderEntries();
+    }
+
+    function getWeekday(dateStr) {
+      const d = new Date(dateStr);
+      return DAYS_DE[d.getDay()];
+    }
+
+    function getAllDaysOfMonth(month) {
+      const [year, m] = month.split("-");
+      const last = new Date(year, parseInt(m), 0).getDate();
+      let days = [];
+      for(let d=1;d<=last;d++) {
+        days.push(`${year}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`);
+      }
+      return days;
+    }
+
+    function diffMinutes(t1, t2) {
+      if (!t1 || !t2) return 0;
+      const [h1, m1] = t1.split(':').map(Number);
+      const [h2, m2] = t2.split(':').map(Number);
+      return (h2*60+m2)-(h1*60+m1);
+    }
+
+    function formatStunden(minuten) {
+      const h = Math.floor(minuten/60);
+      const m = Math.abs(minuten%60);
+      return (h+(m/60)).toLocaleString("de-DE", {minimumFractionDigits:2, maximumFractionDigits:2}).replace('.', ',') + " h";
+    }
+
+    // --- SCHÖNES PDF ---
+    function exportPDF() {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+      const month = selectedMonth;
+      const monthText = `Arbeitszeiten ${formatMonthText(month)}`;
+      const monthEntries = entries.filter(e => e.date.startsWith(month));
+      const tableColumns = ["Datum (Tag)", "Zeit", "Art", "Notiz"];
+      const tableRows = [];
+
+      // Für die Stundenberechnung und ordentliche Darstellung
+      let dateMap = {};
+      monthEntries.forEach(e => {
+        if (!dateMap[e.date]) dateMap[e.date] = [];
+        dateMap[e.date].push(e);
+      });
+
+      Object.keys(dateMap).sort().forEach(date => {
+        const eintraege = dateMap[date];
+        // Wenn nur 1 Eintrag: Urlaub, Frei, Kommen oder Gehen
+        if (eintraege.length === 1) {
+          tableRows.push([
+            `${formatDateDDMMYYYY(date)} (${getWeekday(date)})`,
+            eintraege[0].time,
+            eintraege[0].type,
+            eintraege[0].note || ""
+          ]);
+        } else {
+          // Mehrere Einträge (Kommen/Gehen), jeweils eigene Zeile
+          eintraege.sort((a,b)=>a.time.localeCompare(b.time)).forEach(e=>{
+            tableRows.push([
+              `${formatDateDDMMYYYY(date)} (${getWeekday(date)})`,
+              e.time,
+              e.type,
+              e.note || ""
+            ]);
+          });
+        }
+      });
+
+      // Farben
+      const headerColor = "#e5e5e5";
+      const freiColor = "#fff9c4";
+      const urlaubColor = "#c8f7c5";
+      const zebraColor = "#f7f7f7";
+
+      // Überschrift
+      doc.setFontSize(20);
+      doc.setFont("helvetica", "bold");
+      doc.text(monthText, 14, 18);
+      doc.setFontSize(12);
+      doc.setFont("helvetica", "normal");
+
+      // Tabelle zeichnen
+      let startY = 28;
+      const cellHeight = 9;
+      const colWidths = [50, 20, 28, 80];
+      // Kopf
+      let x = 14;
+      doc.setFillColor(headerColor);
+      doc.setFont("helvetica", "bold");
+      tableColumns.forEach((h, i) => {
+        doc.rect(x, startY, colWidths[i], cellHeight, "F");
+        doc.text(h, x + 2, startY + 6);
+        x += colWidths[i];
+      });
+      doc.setFont("helvetica", "normal");
+      startY += cellHeight;
+
+      // Zeilen
+      let totalMinutes = 0;
+      let lastDate = "";
+      tableRows.forEach((row, idx) => {
+        x = 14;
+        // Typ für Farbe bestimmen
+        const type = row[2];
+        let fill = idx % 2 === 1 ? zebraColor : "#fff";
+        if (type === "Frei") fill = freiColor;
+        if (type === "Urlaub") fill = urlaubColor;
+        // Stundenberechnung
+        let stundenText = "";
+        let date = row[0].split(" ")[0];
+        if (type === "Urlaub") {
+          totalMinutes += URLAUB_MINUTEN_PRO_TAG;
+          stundenText = "7,80 h";
+        } else if (type === "Kommen") {
+          // Suche Kommen/Gehen für denselben Tag in dateMap
+          let tag = Object.keys(dateMap).find(d => formatDateDDMMYYYY(d) === date);
+          if (tag) {
+            const kommen = dateMap[tag].find(ent => ent.type === "Kommen");
+            const gehen = [...dateMap[tag]].reverse().find(ent => ent.type === "Gehen");
+            if (kommen && gehen) {
+              const min = diffMinutes(kommen.time, gehen.time);
+              if (min > 0) {
+                totalMinutes += min;
+                stundenText = formatStunden(min);
+              }
+            }
+          }
+        }
+        tableColumns.forEach((_, i) => {
+          doc.setFillColor(fill);
+          doc.rect(x, startY, colWidths[i], cellHeight, "F");
+          let value = row[i];
+          // Stunden in die Notizspalte
+          if (i === 3 && stundenText) value = (value ? value + "  " : "") + "⏱ " + stundenText;
+          doc.text(String(value), x + 2, startY + 6);
+          x += colWidths[i];
+        });
+        startY += cellHeight;
+        if (startY > 270) {
+          doc.addPage();
+          startY = 20;
+        }
+      });
+
+      // Monatsstunden
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(14);
+      doc.setTextColor("#005900");
+      doc.text(
+        "Monatssumme: " + formatStunden(totalMinutes),
+        14,
+        startY + 12
+      );
+      doc.setTextColor("#000");
+      doc.save(`Arbeitszeiten_${month}.pdf`);
+    }
+
+    function importCSV(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const contents = e.target.result;
+        const lines = contents.split(/\r?\n/).map(line => line.trim()).filter(line => line.length > 0);
+        if (lines.length < 2) { alert("Keine Daten in der Datei."); return; }
+        const header = lines[0].split(';').map(h=>h.replace(/"/g,'').trim().toLowerCase());
+        // Erlaube auch dd.mm.yyyy beim Import
+        function parseDatum(raw) {
+          if (/^\d{2}\.\d{2}\.\d{4}$/.test(raw)) {
+            const [d,m,y] = raw.split(".");
+            return `${y}-${m}-${d}`;
+          }
+          return raw;
+        }
+        if (header[0] !== "datum" || header[1] !== "zeit" || header[2] !== "art") {
+          alert("Ungültiges CSV-Format. Erwartete Spalten: Datum;Zeit;Art;Notiz");
+          return;
+        }
+        let importCount = 0;
+        for(let i=1;i<lines.length;i++) {
+          const fields = lines[i].split(';').map(f=>f.replace(/^"|"$/g,''));
+          if(fields.length >= 3) {
+            const entry = {
+              date: parseDatum(fields[0]),
+              time: fields[1],
+              type: fields[2],
+              note: fields[3]||""
+            };
+            if(!entries.some(e=>
+              e.date===entry.date&&e.time===entry.time&&e.type===entry.type&&e.note===entry.note
+            )) {
+              entries.push(entry);
+              importCount++;
+            }
+          }
+        }
+        saveEntries();
+        renderMonthSelect();
+        renderEntries();
+        alert(importCount+" Einträge importiert.");
+        event.target.value = "";
+      };
+      reader.readAsText(file, 'UTF-8');
+    }
+
+    function renderEntries() {
+      const tbody = document.getElementById('entries');
+      tbody.innerHTML = '';
+      document.getElementById('month').textContent = formatMonthText(selectedMonth);
+
+      const days = getAllDaysOfMonth(selectedMonth);
+
+      // Map: Datum => Array von Einträgen
+      let map = {};
+      entries.forEach((e, i) => {
+        if(!map[e.date]) map[e.date] = [];
+        map[e.date].push({...e, idx: i});
+      });
+
+      let gesamtMinuten = 0;
+
+      days.forEach((day, i) => {
+        let eintraege = map[day] || [];
+        const trennClass = "tag-trenner";
+        if(eintraege.length === 0) {
+          const tr = document.createElement('tr');
+          tr.className = `leer ${trennClass}`;
+          tr.innerHTML = `
+            <td></td>
+            <td>${formatDateDDMMYYYY(day)} (${getWeekday(day)})</td>
+            <td colspan="4" class="leer">Keine Einträge vorhanden</td>
+          `;
+          tbody.appendChild(tr);
+        } else if (eintraege.length === 1 && eintraege[0].type === "Frei") {
+          const e = eintraege[0];
+          const isChecked = selectedEntries.has(e.idx);
+          const tr = document.createElement('tr');
+          tr.className = `frei-row ${trennClass}`;
+          tr.innerHTML = `
+            <td>
+              <input type="checkbox" class="row-checkbox" data-idx="${e.idx}" ${isChecked ? "checked" : ""} onclick="onRowCheckboxChange(${e.idx}, this)">
+            </td>
+            <td>${formatDateDDMMYYYY(e.date)} (${getWeekday(e.date)})</td>
+            <td></td>
+            <td>Frei</td>
+            <td></td>
+            <td>
+              <button class="edit-btn" title="Bearbeiten" onclick="openEdit(${e.idx})">&#9998;</button>
+              <button class="delete-btn" title="Löschen" onclick="deleteEntry(${e.idx})">&#128465;</button>
+            </td>
+          `;
+          tbody.appendChild(tr);
+        } else if (eintraege.length === 1 && eintraege[0].type === "Urlaub") {
+          const e = eintraege[0];
+          const isChecked = selectedEntries.has(e.idx);
+          gesamtMinuten += URLAUB_MINUTEN_PRO_TAG;
+          const tr = document.createElement('tr');
+          tr.className = `urlaub-row ${trennClass}`;
+          tr.innerHTML = `
+            <td>
+              <input type="checkbox" class="row-checkbox" data-idx="${e.idx}" ${isChecked ? "checked" : ""} onclick="onRowCheckboxChange(${e.idx}, this)">
+            </td>
+            <td>${formatDateDDMMYYYY(e.date)} (${getWeekday(e.date)})</td>
+            <td></td>
+            <td>Urlaub</td>
+            <td></td>
+            <td>
+              <button class="edit-btn" title="Bearbeiten" onclick="openEdit(${e.idx})">&#9998;</button>
+              <button class="delete-btn" title="Löschen" onclick="deleteEntry(${e.idx})">&#128465;</button>
+              <span class="tagstunden">= 7,80 h</span>
+            </td>
+          `;
+          tbody.appendChild(tr);
+        } else {
+          eintraege.sort((a,b)=>a.time.localeCompare(b.time));
+          const kommen = eintraege.find(e=>e.type==="Kommen");
+          const gehen = [...eintraege].reverse().find(e=>e.type==="Gehen");
+          let tagesminuten = 0;
+          let stundenAnzeige = "";
+          if (kommen && gehen) {
+            tagesminuten = diffMinutes(kommen.time, gehen.time);
+            if (tagesminuten<0) tagesminuten = 0;
+            gesamtMinuten += tagesminuten;
+            stundenAnzeige = `<span class="tagstunden">= ${formatStunden(tagesminuten)}</span>`;
+          }
+          eintraege.forEach((e, j) => {
+            const isChecked = e.idx !== undefined && selectedEntries.has(e.idx);
+            const tr = document.createElement('tr');
+            tr.className = j === 0 ? trennClass : "tag-no-trenner";
+            tr.innerHTML = `
+              <td>
+                <input type="checkbox" class="row-checkbox" data-idx="${e.idx}" ${isChecked ? "checked" : ""} onclick="onRowCheckboxChange(${e.idx}, this)">
+              </td>
+              <td>${formatDateDDMMYYYY(e.date)} (${getWeekday(e.date)})</td>
+              <td>${e.time}</td>
+              <td>${e.type}</td>
+              <td class="note">${e.note || ''}</td>
+              <td>
+                <button class="edit-btn" title="Bearbeiten" onclick="openEdit(${e.idx})">&#9998;</button>
+                <button class="delete-btn" title="Löschen" onclick="deleteEntry(${e.idx})">&#128465;</button>
+                ${j===0 && stundenAnzeige ? stundenAnzeige : ""}
+              </td>
+            `;
+            tbody.appendChild(tr);
+          });
+        }
+      });
+
+      document.getElementById('monatsstunden').innerHTML =
+        "Monatssumme: " + formatStunden(gesamtMinuten);
+
+      updateBulkCount();
+      updateSelectAllCheckbox();
+    }
+
+    function onRowCheckboxChange(idx, checkbox) {
+      if (checkbox.checked) {
+        selectedEntries.add(idx);
+      } else {
+        selectedEntries.delete(idx);
+      }
+      updateBulkCount();
+      updateSelectAllCheckbox();
+    }
+
+    function toggleAllCheckboxes(master) {
+      const checkboxes = document.querySelectorAll('.row-checkbox');
+      if (master.checked) {
+        checkboxes.forEach(cb => { cb.checked = true; selectedEntries.add(Number(cb.dataset.idx)); });
+      } else {
+        checkboxes.forEach(cb => { cb.checked = false; selectedEntries.delete(Number(cb.dataset.idx)); });
+      }
+      updateBulkCount();
+    }
+
+    function updateBulkCount() {
+      const span = document.getElementById('bulkCount');
+      if (selectedEntries.size > 0) {
+        span.textContent = selectedEntries.size + " Eintrag" + (selectedEntries.size === 1 ? "" : "e") + " ausgewählt";
+      } else {
+        span.textContent = "";
+      }
+    }
+
+    function updateSelectAllCheckbox() {
+      const allCbs = document.querySelectorAll('.row-checkbox');
+      const master = document.getElementById('selectAll');
+      if (allCbs.length === 0) {
+        master.checked = false;
+        master.indeterminate = false;
+        master.disabled = true;
+      } else {
+        master.disabled = false;
+        const checkedCount = Array.from(allCbs).filter(cb => cb.checked).length;
+        if (checkedCount === 0) {
+          master.checked = false;
+          master.indeterminate = false;
+        } else if (checkedCount === allCbs.length) {
+          master.checked = true;
+          master.indeterminate = false;
+        } else {
+          master.checked = false;
+          master.indeterminate = true;
+        }
+      }
+    }
+
+    function bulkDelete() {
+      if (selectedEntries.size === 0) {
+        alert("Bitte wähle mindestens einen Eintrag aus.");
+        return;
+      }
+      if (!confirm(`Sollen die ${selectedEntries.size} ausgewählten Einträge unwiderruflich gelöscht werden?`)) return;
+      entries = entries.filter((e, i) => !selectedEntries.has(i));
+      selectedEntries.clear();
+      saveEntries();
+      renderMonthSelect();
+      renderEntries();
+    }
+
+    function deleteEntry(idx) {
+      if (confirm('Eintrag wirklich löschen?')) {
+        entries.splice(idx, 1);
+        selectedEntries.delete(idx);
+        saveEntries();
+        renderMonthSelect();
+        renderEntries();
+      }
+    }
+
+    function deleteMonthEntries() {
+      const month = selectedMonth;
+      const monthEntries = entries.filter(e => e.date.startsWith(month));
+      if(monthEntries.length === 0) {
+        alert("Keine Einträge für diesen Monat vorhanden.");
+        return;
+      }
+      if(confirm(`Alle Einträge für ${formatMonthText(month)} unwiderruflich löschen?\n\nTipp: Exportiere vorher die Daten als CSV oder PDF, falls du sie später nochmal brauchst.`)) {
+        const check = prompt('Sicherheitsabfrage: Bitte tippe LÖSCHEN (in Großbuchstaben), um das Löschen zu bestätigen.');
+        if (check !== "LÖSCHEN") {
+          alert("Löschen abgebrochen. Sicherheitsabfrage nicht korrekt.");
+          return;
+        }
+        entries = entries.filter(e => !e.date.startsWith(month));
+        selectedEntries.clear();
+        saveEntries();
+        renderMonthSelect();
+        renderEntries();
+      }
+    }
+
+    function openEdit(idx) {
+      editIndex = idx;
+      const e = entries[idx];
+      document.getElementById('editDate').value = e.date;
+      document.getElementById('editTime').value = e.time;
+      document.getElementById('editType').value = e.type;
+      document.getElementById('editNote').value = e.note || '';
+      document.getElementById('editModal').style.display = 'flex';
+    }
+    function closeModal() {
+      document.getElementById('editModal').style.display = 'none';
+    }
+    function saveEdit() {
+      const date = document.getElementById('editDate').value;
+      const time = document.getElementById('editTime').value;
+      const type = document.getElementById('editType').value;
+      const note = document.getElementById('editNote').value;
+      if (!date || (type!=="Frei" && type!=="Urlaub" && !time)) {
+        alert("Datum und (außer bei Frei/Urlaub) Zeit müssen ausgefüllt sein!");
+        return;
+      }
+      if(type==="Frei" && entries.some((e,i)=>i!==editIndex && e.date===date && e.type!=="Frei")) {
+        alert("Für diesen Tag ist bereits ein anderer Eintrag vorhanden.");
+        return;
+      }
+      if(type==="Urlaub" && entries.some((e,i)=>i!==editIndex && e.date===date && e.type!=="Urlaub")) {
+        alert("Für diesen Tag ist bereits ein anderer Eintrag vorhanden.");
+        return;
+      }
+      entries[editIndex] = {date, time: (type==="Frei"||type==="Urlaub")?"":time, type, note};
+      saveEntries();
+      if (!date.startsWith(selectedMonth)) {
+        selectedMonth = date.slice(0,7);
+        renderMonthSelect();
+      }
+      renderEntries();
+      closeModal();
+    }
+    function exportCSV() {
+      const month = selectedMonth;
+      const rows = [['Datum','Zeit','Art','Notiz']];
+      entries.filter(e => e.date.startsWith(month)).forEach(e => {
+        // dd.mm.yyyy für Export
+        rows.push([formatDateDDMMYYYY(e.date), e.time, e.type, e.note.replace(/"/g, '""')]);
+      });
+      let csv = rows.map(r => r.map(f=>`"${f}"`).join(';')).join('\r\n');
+      const blob = new Blob([csv], {type:'text/csv'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Arbeitszeiten_${month}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    // Initialisierung
+    loadEntries();
+    renderMonthSelect();
+    renderEntries();
+
+    window.onclick = function(event) {
+      // Von-bis Modal außerhalb schließen
+      const modal = document.getElementById('fromto-modal-bg');
+      if (event.target == modal) closeFromToModal();
+      // Edit Modal außerhalb schließen
+      const editModal = document.getElementById('editModal');
+      if (event.target == editModal) closeModal();
+    }
+  </script>
+</body>
+</html>
