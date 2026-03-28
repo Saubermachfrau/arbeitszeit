@@ -5,11 +5,11 @@
   <title>Arbeitszeiterfassung</title>
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
   <style>
-    body { font-family: sans-serif; background: #f0f2f5; margin: 0; padding: 0; color: #333; }
+    body { font-family: sans-serif; background: #f0f2f5; margin: 0; padding: 0; color: #000; }
     .container { max-width: 500px; margin: 0 auto; padding: 1em; background: #fff; min-height: 100vh; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
     h1 { text-align: center; font-size: 1.5em; margin: 0.5em 0; color: #2c3e50; }
     
-    /* Buttons & Farben - Bleiben wie gewünscht */
+    /* Buttons & Farben */
     .actions { display: flex; flex-direction: column; align-items: center; gap: 10px; margin-bottom: 20px; }
     .actions-row { display: flex; gap: 10px; width: 100%; justify-content: center; }
     button.kommen, button.gehen, button.frei, button.urlaub {
@@ -28,27 +28,25 @@
     .frei { background: #ffe066; color: #665c00; }
     .urlaub { background: #8be08b; color: #155d15; }
 
-    /* Tabellen-Design für Pixel 10 Pro */
-    .table-wrapper { width: 100%; overflow-x: auto; margin-top: 15px; border: 1px solid #ddd; border-radius: 8px; }
+    /* Tabellen-Design */
+    .table-wrapper { width: 100%; overflow-x: auto; margin-top: 15px; border: 1px solid #bbb; border-radius: 8px; }
     table { width: 100%; border-collapse: collapse; min-width: 420px; font-size: 0.9em; table-layout: fixed; }
-    th, td { border: 1px solid #ddd; padding: 10px 5px; text-align: center; vertical-align: middle; }
-    th { background: #f8f9fa; font-weight: bold; }
+    th, td { border: 1px solid #bbb; padding: 10px 5px; text-align: center; vertical-align: middle; }
+    th { background: #e9ecef; font-weight: bold; }
 
-    /* Breiten der Spalten fixieren für bessere Lesbarkeit */
-    th:nth-child(1) { width: 35px; } /* Checkbox */
-    th:nth-child(2) { width: 90px; } /* Tag */
-    th:nth-child(3) { width: 60px; } /* Zeit */
-    th:nth-child(4) { width: 75px; } /* Art */
-    th:nth-child(5) { width: auto; } /* Notiz */
-    th:nth-child(6) { width: 70px; } /* Aktion */
+    th:nth-child(1) { width: 35px; } 
+    th:nth-child(2) { width: 90px; } 
+    th:nth-child(3) { width: 60px; } 
+    th:nth-child(4) { width: 75px; } 
+    th:nth-child(5) { width: auto; } 
+    th:nth-child(6) { width: 70px; } 
 
-    /* Tag-Farben (Zebra-Look pro TAG) */
+    /* Tag-Farben */
     .day-white { background-color: #ffffff; }
-    .day-gray { background-color: #e0e0e0; } /* DEUTLICH DUNKLERES GRAU */
+    .day-gray { background-color: #f2f2f2; } /* Neues, lesbares Grau */
     .frei-row td { background-color: #fff9c4 !important; }
     .urlaub-row td { background-color: #e8f9e7 !important; }
     
-    /* Notiz-Umbruch Fix */
     .note-cell { 
       white-space: normal; 
       word-wrap: break-word; 
@@ -72,7 +70,6 @@
     }
     .btn-main { grid-column: span 2; background: #0275d8 !important; color: white !important; border: none !important; }
 
-    /* Modals */
     .modal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1000; align-items:center; justify-content:center; }
     .modal-content { background:white; padding:20px; border-radius:15px; width:90%; max-width:350px; box-shadow: 0 5px 15px rgba(0,0,0,0.3); }
     .modal-content input, .modal-content select, .modal-content textarea { width: 100%; padding: 12px; margin: 8px 0; box-sizing: border-box; border: 1px solid #ccc; border-radius: 8px; font-size: 1em; }
@@ -116,7 +113,7 @@
     </table>
   </div>
 
-  <div id="totalDisplay" class="summary">Summe: 0,00 h</div>
+  <div id="totalDisplay" class="summary">Monatssumme: 0,00 h</div>
 
   <div class="tools">
     <button class="btn-main" onclick="openEdit(null)">+ Manueller Nachtrag</button>
@@ -195,7 +192,7 @@
     const [y, m] = selectedMonth.split('-');
     const lastDay = new Date(y, m, 0).getDate();
     let totalMin = 0;
-    let dayToggle = true; // Für Zebrastreifen pro Tag
+    let dayToggle = true;
 
     for (let d = 1; d <= lastDay; d++) {
       const dateStr = `${y}-${m}-${String(d).padStart(2, '0')}`;
@@ -204,11 +201,11 @@
       const label = `${String(d).padStart(2, '0')}.${m}. (${DE_TAGE[dObj.getDay()]})`;
       
       const dayClass = dayToggle ? 'day-white' : 'day-gray';
-      dayToggle = !dayToggle; // Wechseln für den nächsten Tag
+      dayToggle = !dayToggle;
 
       if (dayData.length === 0) {
-        body.innerHTML += `<tr class="${dayClass}" style="color:#777">
-          <td></td><td>${label}</td><td colspan="3" style="font-style:italic; font-size:0.8em;">kein Eintrag</td>
+        body.innerHTML += `<tr class="${dayClass}" style="color:#555">
+          <td></td><td>${label}</td><td colspan="3" style="font-style:italic; font-size:0.8em;">-</td>
           <td><button onclick="openEdit(null, '${dateStr}')" style="border:none; background:none; color:#0275d8; font-size:1.4em; padding:0;">+</button></td>
         </tr>`;
       } else {
@@ -229,12 +226,12 @@
           
           body.innerHTML += `<tr class="${rowClass}">
             <td><input type="checkbox" onchange="toggleRow(${realIdx})" ${selectedRows.has(realIdx) ? 'checked' : ''}></td>
-            <td style="font-weight:${i===0?'bold':'normal'}; border-top:${i===0?'1px solid #999':'none'};">
+            <td style="font-weight:${i===0?'bold':'normal'}; border-top:${i===0?'1px solid #777':'none'}; color:#000;">
                 ${i === 0 ? label : ''}
             </td>
-            <td>${e.time || ''}</td>
-            <td>${e.type}</td>
-            <td class="note-cell">${e.note || ''}</td>
+            <td style="color:#000;">${e.time || ''}</td>
+            <td style="color:#000;">${e.type}</td>
+            <td class="note-cell" style="color:#000;">${e.note || ''}</td>
             <td>
               <div style="display:flex; flex-direction:column; align-items:center; gap:5px;">
                   <button onclick="openEdit(${realIdx})" style="border:none; background:none; font-size:1.2em; padding:0;">✎</button>
