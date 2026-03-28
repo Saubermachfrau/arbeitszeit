@@ -47,3 +47,322 @@
       text-align: center; font-size: 0.9em; cursor: pointer; color: #333; box-sizing: border-box;
     }
     .btn-main { grid-column: span 2; background: #0275d8 !important; color: white !important; border: none !important; }
+
+    .modal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1000; align-items:center; justify-content:center; }
+    .modal-content { background:white; padding:20px; border-radius:12px; width:90%; max-width:350px; }
+    .modal-content input, .modal-content select, .modal-content textarea { width: 100%; padding: 12px; margin: 8px 0; box-sizing: border-box; border: 1px solid #ccc; border-radius: 6px; font-size: 1em; }
+  </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+</head>
+<body>
+
+<div class="container">
+  <h1>Zeiterfassung</h1>
+  
+  <div class="actions">
+    <div class="actions-row">
+      <button class="kommen" onclick="addQuick('Kommen')">Kommen</button>
+      <button class="gehen" onclick="addQuick('Gehen')">Gehen</button>
+    </div>
+    <div class="actions-row">
+      <button class="frei" onclick="openFT('Frei')">Frei</button>
+      <button class="urlaub" onclick="openFT('Urlaub')">Urlaub</button>
+    </div>
+  </div>
+
+  <div class="controls-row">
+    <select id="monatSelect" onchange="changeMonth()"></select>
+    <button onclick="bulkDelete()" style="padding: 8px; background: #f0ad4e; color:white; border:none; border-radius:5px;">Löschen (<span id="selCount">0</span>)</button>
+  </div>
+
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th><input type="checkbox" onclick="toggleAll(this)"></th>
+          <th>Tag</th>
+          <th>Zeit</th>
+          <th>Art</th>
+          <th>Notiz</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="tableBody"></tbody>
+    </table>
+  </div>
+
+  <div id="totalDisplay" class="summary">Summe: 0,00 h</div>
+
+  <div class="tools">
+    <button class="btn-main" onclick="openEdit(null)">+ Manueller Nachtrag</button>
+    <button onclick="exportCSV()">CSV Export</button>
+    <button onclick="exportPDF()">PDF Export</button>
+    <label>CSV Import <input type="file" style="display:none" onchange="importCSV(event)"></label>
+    <button onclick="clearMonth()" style="color:red">Monat leeren</button>
+  </div>
+</div>
+
+<div id="editModal" class="modal" onclick="this.style.display='none'">
+  <div class="modal-content" onclick="event.stopPropagation()">
+    <h3 id="modalTitle" style="margin-top:0">Eintrag</h3>
+    <input type="date" id="edDate">
+    <input type="time" id="edTime">
+    <select id="edType">
+      <option value="Kommen">Kommen</option>
+      <option value="Gehen">Gehen</option>
+      <option value="Frei">Frei</option>
+      <option value="Urlaub">Urlaub</option>
+    </select>
+    <textarea id="edNote" placeholder="Notiz..."></textarea>
+    <button onclick="saveEdit()" style="width:100%; padding:15px; background:#0275d8; color:white; border:none; border-radius:6px; font-weight:bold;">Speichern</button>
+  </div>
+</div>
+
+<div id="ftModal" class="modal" onclick="this.style.display='none'">
+  <div class="modal-content" onclick="event.stopPropagation()">
+    <h3 id="ftTitle">Zeitraum</h3>
+    <label>Von:</label><input type="date" id="ftFrom">
+    <label>Bis:</label><input type="date" id="ftTo">
+    <button onclick="saveFT()" style="width:100%; padding:15px; background:#5cb85c; color:white; border:none; border-radius:6px; font-weight:bold; margin-top:10px;">Eintragen</button>
+  </div>
+</div>
+
+<script>
+  // Wir suchen in allen möglichen alten Speichernamen, um Daten zu retten
+  const OLD_KEYS = ['arbeitszeit-entries', 'arbeitszeit-data', 'arbeitszeit_v3'];
+  const CURRENT_KEY = 'arbeitszeit-entries'; // Zurück zum Original
+  
+  let entries = [];
+  let selectedMonth = new Date().toISOString().slice(0, 7);
+  let editIdx = null;
+  let selectedRows = new Set();
+
+  const DE_MONATE = ["Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"];
+  const DE_TAGE = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"];
+
+  function init() {
+    let combined = [];
+    // Daten-Migration: Wir sammeln alles ein, was wir finden
+    OLD_KEYS.forEach(key => {
+      try {
+        const data = localStorage.getItem(key);
+        if (data) {
+          const parsed = JSON.parse(data);
+          if (Array.isArray(parsed)) combined = [...combined, ...parsed];
+        }
+      } catch(e) {}
+    });
+
+    // Duplikate filtern (falls in mehreren Keys das gleiche stand)
+    const unique = new Map();
+    combined.forEach(e => {
+      const id = `${e.date}-${e.time}-${e.type}-${e.note}`;
+      unique.set(id, e);
+    });
+    entries = Array.from(unique.values());
+    
+    save(); // In den Haupt-Key speichern
+    renderMonthSelect();
+    render();
+  }
+
+  function save() {
+    localStorage.setItem(CURRENT_KEY, JSON.stringify(entries));
+  }
+
+  function renderMonthSelect() {
+    const s = document.getElementById('monatSelect');
+    let months = Array.from(new Set(entries.map(e => (e.date || "").slice(0,7)))).filter(m => m);
+    if (!months.includes(selectedMonth)) months.push(selectedMonth);
+    months.sort().reverse();
+    
+    s.innerHTML = '';
+    months.forEach(m => {
+      const opt = document.createElement('option');
+      opt.value = m;
+      const [y, mo] = m.split('-');
+      opt.textContent = DE_MONATE[parseInt(mo)-1] + " " + y;
+      opt.selected = (m === selectedMonth);
+      s.appendChild(opt);
+    });
+  }
+
+  function render() {
+    const body = document.getElementById('tableBody');
+    body.innerHTML = '';
+    const [y, m] = selectedMonth.split('-');
+    const lastDay = new Date(y, m, 0).getDate();
+    let totalMin = 0;
+
+    let monthData = entries.filter(e => e.date && e.date.startsWith(selectedMonth));
+    
+    for (let d = 1; d <= lastDay; d++) {
+      const dateStr = `${y}-${m}-${String(d).padStart(2, '0')}`;
+      const dayData = monthData.filter(e => e.date === dateStr).sort((a,b) => (a.time || "").localeCompare(b.time || ""));
+      const dObj = new Date(dateStr);
+      const label = `${String(d).padStart(2, '0')}.${m}. (${DE_TAGE[dObj.getDay()]})`;
+
+      if (dayData.length === 0) {
+        body.innerHTML += `<tr style="color:#bbb"><td></td><td>${label}</td><td colspan="3">-</td><td><button onclick="openEdit(null, '${dateStr}')" style="border:none; background:none; color:#0275d8; font-size:1.5em; padding:0 10px;">+</button></td></tr>`;
+      } else {
+        const kommen = dayData.find(e => e.type === 'Kommen');
+        const gehen = [...dayData].reverse().find(e => e.type === 'Gehen');
+        let dayDiff = 0;
+        if (kommen && gehen && kommen.time && gehen.time) {
+          const t1 = kommen.time.split(':').map(Number);
+          const t2 = gehen.time.split(':').map(Number);
+          dayDiff = (t2[0]*60 + t2[1]) - (t1[0]*60 + t1[1]);
+          if (dayDiff > 0) totalMin += dayDiff;
+        }
+
+        dayData.forEach((e, i) => {
+          const realIdx = entries.indexOf(e);
+          if (e.type === 'Urlaub') totalMin += 468;
+          const rowClass = e.type === 'Frei' ? 'frei-row' : (e.type === 'Urlaub' ? 'urlaub-row' : '');
+          
+          body.innerHTML += `<tr class="${rowClass}">
+            <td><input type="checkbox" onchange="toggleRow(${realIdx})" ${selectedRows.has(realIdx) ? 'checked' : ''}></td>
+            <td>${i === 0 ? label : ''}</td>
+            <td>${e.time || ''}</td>
+            <td>${e.type}</td>
+            <td style="max-width:70px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${e.note || ''}</td>
+            <td>
+              <button onclick="openEdit(${realIdx})" style="border:none; background:none; font-size:1.2em;">✎</button>
+              ${i === 0 && dayDiff > 0 ? `<span class="tagstunden">${(dayDiff/60).toFixed(2).replace('.',',')}h</span>` : ''}
+              ${i === 0 && e.type === 'Urlaub' ? `<span class="tagstunden">7,80h</span>` : ''}
+            </td>
+          </tr>`;
+        });
+      }
+    }
+    document.getElementById('totalDisplay').textContent = "Summe: " + (totalMin/60).toFixed(2).replace('.', ',') + " h";
+    document.getElementById('selCount').textContent = selectedRows.size;
+  }
+
+  function addQuick(type) {
+    const now = new Date();
+    entries.push({
+      date: now.toISOString().slice(0, 10),
+      time: now.toTimeString().slice(0, 5),
+      type: type,
+      note: type === 'Gehen' ? (prompt("Notiz?") || "") : ""
+    });
+    save(); render(); renderMonthSelect();
+  }
+
+  function openEdit(idx, forceDate) {
+    editIdx = idx;
+    const e = idx !== null ? entries[idx] : { date: forceDate || new Date().toISOString().slice(0,10), time: "08:00", type: "Kommen", note: "" };
+    document.getElementById('edDate').value = e.date;
+    document.getElementById('edTime').value = e.time;
+    document.getElementById('edType').value = e.type;
+    document.getElementById('edNote').value = e.note || "";
+    document.getElementById('editModal').style.display = 'flex';
+  }
+
+  function saveEdit() {
+    const e = {
+      date: document.getElementById('edDate').value,
+      time: document.getElementById('edTime').value,
+      type: document.getElementById('edType').value,
+      note: document.getElementById('edNote').value
+    };
+    if (editIdx === null) entries.push(e); else entries[editIdx] = e;
+    save(); document.getElementById('editModal').style.display = 'none'; render(); renderMonthSelect();
+  }
+
+  function openFT(type) {
+    document.getElementById('ftTitle').textContent = type;
+    const d = new Date().toISOString().slice(0,10);
+    document.getElementById('ftFrom').value = d;
+    document.getElementById('ftTo').value = d;
+    document.getElementById('ftModal').style.display = 'flex';
+  }
+
+  function saveFT() {
+    const type = document.getElementById('ftTitle').textContent;
+    let start = new Date(document.getElementById('ftFrom').value);
+    const end = new Date(document.getElementById('ftTo').value);
+    while(start <= end) {
+      const ds = start.toISOString().slice(0,10);
+      const isWE = start.getDay() === 0 || start.getDay() === 6;
+      entries.push({ date: ds, time: "", type: isWE || type === "Frei" ? "Frei" : "Urlaub", note: "" });
+      start.setDate(start.getDate() + 1);
+    }
+    save(); document.getElementById('ftModal').style.display = 'none'; render(); renderMonthSelect();
+  }
+
+  function toggleRow(idx) { if(selectedRows.has(idx)) selectedRows.delete(idx); else selectedRows.add(idx); render(); }
+  function toggleAll(master) {
+    if(master.checked) entries.forEach((e,i) => { if(e.date && e.date.startsWith(selectedMonth)) selectedRows.add(i); });
+    else selectedRows.clear();
+    render();
+  }
+
+  function bulkDelete() {
+    if(selectedRows.size === 0) return;
+    if(confirm("Markierte löschen?")) {
+      entries = entries.filter((_, i) => !selectedRows.has(i));
+      selectedRows.clear(); save(); render(); renderMonthSelect();
+    }
+  }
+
+  function changeMonth() { selectedMonth = document.getElementById('monatSelect').value; selectedRows.clear(); render(); }
+  
+  function clearMonth() {
+    if(confirm("Ganzen Monat leeren?") && prompt("Tippe LÖSCHEN") === "LÖSCHEN") {
+      entries = entries.filter(e => e.date && !e.date.startsWith(selectedMonth));
+      save(); render(); renderMonthSelect();
+    }
+  }
+
+  function importCSV(ev) {
+    const file = ev.target.files[0];
+    if (!file) return;
+    const r = new FileReader();
+    r.onload = (e) => {
+      const lines = e.target.result.split(/\r?\n/).filter(l => l.trim() !== "");
+      lines.slice(1).forEach(line => {
+        // Erkennt Komma oder Semikolon und entfernt Anführungszeichen
+        let f = line.split(/[;,]/).map(s => s.replace(/^["']|["']$/g, '').trim());
+        if(f.length >= 3) {
+          let d = f[0];
+          // Falls deutsches Format dd.mm.yyyy, umwandeln in yyyy-mm-dd
+          if(d.includes('.')) {
+            let b = d.split('.');
+            if(b.length === 3) d = `${b[2]}-${b[1]}-${b[0]}`;
+          }
+          entries.push({date: d, time: f[1], type: f[2], note: f[3] || ""});
+        }
+      });
+      save(); render(); renderMonthSelect();
+      alert("Import abgeschlossen!");
+    };
+    r.readAsText(file);
+  }
+
+  function exportCSV() {
+    let csv = "Datum;Zeit;Art;Notiz\n" + entries.filter(e => e.date && e.date.startsWith(selectedMonth)).map(e => `${e.date};${e.time};${e.type};${e.note}`).join("\n");
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([csv], {type: 'text/csv'}));
+    a.download = `Arbeitszeit_${selectedMonth}.csv`;
+    a.click();
+  }
+
+  function exportPDF() {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    doc.text("Zeiterfassung " + selectedMonth, 10, 10);
+    let y = 20;
+    entries.filter(e => e.date && e.date.startsWith(selectedMonth)).forEach(e => {
+      doc.text(`${e.date} | ${e.time} | ${e.type} | ${e.note}`, 10, y);
+      y += 7;
+      if(y > 280) { doc.addPage(); y = 10; }
+    });
+    doc.save(`Zeiten_${selectedMonth}.pdf`);
+  }
+
+  init();
+</script>
+</body>
+</html>
