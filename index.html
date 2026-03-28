@@ -5,10 +5,11 @@
   <title>Arbeitszeiterfassung</title>
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
   <style>
-    body { font-family: sans-serif; background: #f7f7f7; margin: 0; padding: 0; color: #333; }
+    body { font-family: sans-serif; background: #f0f2f5; margin: 0; padding: 0; color: #333; }
     .container { max-width: 500px; margin: 0 auto; padding: 1em; background: #fff; min-height: 100vh; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
-    h1 { text-align: center; font-size: 1.5em; margin: 0.5em 0; }
+    h1 { text-align: center; font-size: 1.5em; margin: 0.5em 0; color: #2c3e50; }
     
+    /* Buttons & Farben - Bleiben wie gewünscht */
     .actions { display: flex; flex-direction: column; align-items: center; gap: 10px; margin-bottom: 20px; }
     .actions-row { display: flex; gap: 10px; width: 100%; justify-content: center; }
     button.kommen, button.gehen, button.frei, button.urlaub {
@@ -27,37 +28,61 @@
     .frei { background: #ffe066; color: #665c00; }
     .urlaub { background: #8be08b; color: #155d15; }
 
-    .table-wrapper { width: 100%; overflow-x: auto; margin-top: 15px; border: 1px solid #eee; border-radius: 8px; }
-    table { width: 100%; border-collapse: collapse; min-width: 450px; font-size: 0.85em; }
-    th, td { border: 1px solid #eee; padding: 8px 4px; text-align: center; }
-    th { background: #f8f8f8; }
+    /* Tabellen-Design für Pixel 10 Pro */
+    .table-wrapper { width: 100%; overflow-x: auto; margin-top: 15px; border: 1px solid #ddd; border-radius: 8px; }
+    table { width: 100%; border-collapse: collapse; min-width: 420px; font-size: 0.9em; table-layout: fixed; }
+    th, td { border: 1px solid #ddd; padding: 10px 5px; text-align: center; vertical-align: middle; }
+    th { background: #f8f9fa; font-weight: bold; }
 
-    .frei-row td { background: #fff9c4 !important; }
-    .urlaub-row td { background: #e8f9e7 !important; }
-    .tagstunden { font-size: 0.8em; color: #0056b3; font-weight: bold; display: block; margin-top: 2px; }
+    /* Breiten der Spalten fixieren für bessere Lesbarkeit */
+    th:nth-child(1) { width: 35px; } /* Checkbox */
+    th:nth-child(2) { width: 90px; } /* Tag */
+    th:nth-child(3) { width: 60px; } /* Zeit */
+    th:nth-child(4) { width: 75px; } /* Art */
+    th:nth-child(5) { width: auto; } /* Notiz */
+    th:nth-child(6) { width: 70px; } /* Aktion */
 
-    .controls-row { display: flex; justify-content: space-between; align-items: center; margin: 10px 0; gap: 5px; }
-    select { padding: 8px; border-radius: 5px; border: 1px solid #ccc; flex-grow: 1; font-size: 1em; }
+    /* Tag-Farben (Zebra-Look pro TAG) */
+    .day-white { background-color: #ffffff; }
+    .day-gray { background-color: #f9f9f9; }
+    .frei-row td { background-color: #fff9c4 !important; }
+    .urlaub-row td { background-color: #e8f9e7 !important; }
     
-    .summary { text-align: right; font-weight: bold; font-size: 1.2em; margin: 15px 0; color: #2c3e50; }
+    /* Notiz-Umbruch Fix */
+    .note-cell { 
+      white-space: normal; 
+      word-wrap: break-word; 
+      overflow-wrap: anywhere; 
+      text-align: left; 
+      font-size: 0.85em;
+      line-height: 1.2;
+    }
+
+    .tagstunden { font-size: 0.8em; color: #0056b3; font-weight: bold; display: block; margin-top: 4px; }
+
+    /* UI Elemente */
+    .controls-row { display: flex; justify-content: space-between; align-items: center; margin: 10px 0; gap: 8px; }
+    select { padding: 10px; border-radius: 8px; border: 1px solid #ccc; flex-grow: 1; font-size: 1em; background: #fff; }
+    .summary { text-align: right; font-weight: bold; font-size: 1.2em; margin: 15px 0; color: #2c3e50; border-top: 2px solid #eee; padding-top: 10px; }
 
     .tools { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 20px; }
     .tools button, .tools label { 
-      padding: 12px 5px; background: #f8f9fa; border: 1px solid #ddd; border-radius: 6px; 
-      text-align: center; font-size: 0.9em; cursor: pointer; color: #333; box-sizing: border-box;
+      padding: 12px 5px; background: #fff; border: 1px solid #ccc; border-radius: 8px; 
+      text-align: center; font-size: 0.9em; cursor: pointer; color: #333; font-weight: 500;
     }
     .btn-main { grid-column: span 2; background: #0275d8 !important; color: white !important; border: none !important; }
 
+    /* Modals */
     .modal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1000; align-items:center; justify-content:center; }
-    .modal-content { background:white; padding:20px; border-radius:12px; width:90%; max-width:350px; }
-    .modal-content input, .modal-content select, .modal-content textarea { width: 100%; padding: 12px; margin: 8px 0; box-sizing: border-box; border: 1px solid #ccc; border-radius: 6px; font-size: 1em; }
+    .modal-content { background:white; padding:20px; border-radius:15px; width:90%; max-width:350px; box-shadow: 0 5px 15px rgba(0,0,0,0.3); }
+    .modal-content input, .modal-content select, .modal-content textarea { width: 100%; padding: 12px; margin: 8px 0; box-sizing: border-box; border: 1px solid #ccc; border-radius: 8px; font-size: 1em; }
   </style>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
 <body>
 
 <div class="container">
-  <h1>Zeiterfassung</h1>
+  <h1>Arbeitszeit</h1>
   
   <div class="actions">
     <div class="actions-row">
@@ -72,7 +97,7 @@
 
   <div class="controls-row">
     <select id="monatSelect" onchange="changeMonth()"></select>
-    <button onclick="bulkDelete()" style="padding: 8px; background: #f0ad4e; color:white; border:none; border-radius:5px;">Löschen (<span id="selCount">0</span>)</button>
+    <button onclick="bulkDelete()" style="padding: 10px; background: #f0ad4e; color:white; border:none; border-radius:8px; font-weight:bold;">Löschen (<span id="selCount">0</span>)</button>
   </div>
 
   <div class="table-wrapper">
@@ -84,7 +109,7 @@
           <th>Zeit</th>
           <th>Art</th>
           <th>Notiz</th>
-          <th></th>
+          <th>Aktion</th>
         </tr>
       </thead>
       <tbody id="tableBody"></tbody>
@@ -98,13 +123,13 @@
     <button onclick="exportCSV()">CSV Export</button>
     <button onclick="exportPDF()">PDF Export</button>
     <label>CSV Import <input type="file" style="display:none" onchange="importCSV(event)"></label>
-    <button onclick="clearMonth()" style="color:red">Monat leeren</button>
+    <button onclick="clearMonth()" style="color:#d9534f">Monat leeren</button>
   </div>
 </div>
 
 <div id="editModal" class="modal" onclick="this.style.display='none'">
   <div class="modal-content" onclick="event.stopPropagation()">
-    <h3 id="modalTitle" style="margin-top:0">Eintrag</h3>
+    <h3 id="modalTitle" style="margin-top:0">Eintrag bearbeiten</h3>
     <input type="date" id="edDate">
     <input type="time" id="edTime">
     <select id="edType">
@@ -114,7 +139,7 @@
       <option value="Urlaub">Urlaub</option>
     </select>
     <textarea id="edNote" placeholder="Notiz..."></textarea>
-    <button onclick="saveEdit()" style="width:100%; padding:15px; background:#0275d8; color:white; border:none; border-radius:6px; font-weight:bold;">Speichern</button>
+    <button onclick="saveEdit()" style="width:100%; padding:15px; background:#0275d8; color:white; border:none; border-radius:8px; font-weight:bold;">Speichern</button>
   </div>
 </div>
 
@@ -123,15 +148,12 @@
     <h3 id="ftTitle">Zeitraum</h3>
     <label>Von:</label><input type="date" id="ftFrom">
     <label>Bis:</label><input type="date" id="ftTo">
-    <button onclick="saveFT()" style="width:100%; padding:15px; background:#5cb85c; color:white; border:none; border-radius:6px; font-weight:bold; margin-top:10px;">Eintragen</button>
+    <button onclick="saveFT()" style="width:100%; padding:15px; background:#5cb85c; color:white; border:none; border-radius:8px; font-weight:bold; margin-top:10px;">Eintragen</button>
   </div>
 </div>
 
 <script>
-  // Wir suchen in allen möglichen alten Speichernamen, um Daten zu retten
-  const OLD_KEYS = ['arbeitszeit-entries', 'arbeitszeit-data', 'arbeitszeit_v3'];
-  const CURRENT_KEY = 'arbeitszeit-entries'; // Zurück zum Original
-  
+  const CURRENT_KEY = 'arbeitszeit-entries';
   let entries = [];
   let selectedMonth = new Date().toISOString().slice(0, 7);
   let editIdx = null;
@@ -141,41 +163,21 @@
   const DE_TAGE = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"];
 
   function init() {
-    let combined = [];
-    // Daten-Migration: Wir sammeln alles ein, was wir finden
-    OLD_KEYS.forEach(key => {
-      try {
-        const data = localStorage.getItem(key);
-        if (data) {
-          const parsed = JSON.parse(data);
-          if (Array.isArray(parsed)) combined = [...combined, ...parsed];
-        }
-      } catch(e) {}
-    });
-
-    // Duplikate filtern (falls in mehreren Keys das gleiche stand)
-    const unique = new Map();
-    combined.forEach(e => {
-      const id = `${e.date}-${e.time}-${e.type}-${e.note}`;
-      unique.set(id, e);
-    });
-    entries = Array.from(unique.values());
-    
-    save(); // In den Haupt-Key speichern
+    try {
+      const data = localStorage.getItem(CURRENT_KEY);
+      if (data) entries = JSON.parse(data);
+    } catch(e) { entries = []; }
     renderMonthSelect();
     render();
   }
 
-  function save() {
-    localStorage.setItem(CURRENT_KEY, JSON.stringify(entries));
-  }
+  function save() { localStorage.setItem(CURRENT_KEY, JSON.stringify(entries)); }
 
   function renderMonthSelect() {
     const s = document.getElementById('monatSelect');
     let months = Array.from(new Set(entries.map(e => (e.date || "").slice(0,7)))).filter(m => m);
     if (!months.includes(selectedMonth)) months.push(selectedMonth);
     months.sort().reverse();
-    
     s.innerHTML = '';
     months.forEach(m => {
       const opt = document.createElement('option');
@@ -193,17 +195,22 @@
     const [y, m] = selectedMonth.split('-');
     const lastDay = new Date(y, m, 0).getDate();
     let totalMin = 0;
+    let dayToggle = true; // Für Zebrastreifen pro Tag
 
-    let monthData = entries.filter(e => e.date && e.date.startsWith(selectedMonth));
-    
     for (let d = 1; d <= lastDay; d++) {
       const dateStr = `${y}-${m}-${String(d).padStart(2, '0')}`;
-      const dayData = monthData.filter(e => e.date === dateStr).sort((a,b) => (a.time || "").localeCompare(b.time || ""));
+      const dayData = entries.filter(e => e.date === dateStr).sort((a,b) => (a.time || "").localeCompare(b.time || ""));
       const dObj = new Date(dateStr);
       const label = `${String(d).padStart(2, '0')}.${m}. (${DE_TAGE[dObj.getDay()]})`;
+      
+      const dayClass = dayToggle ? 'day-white' : 'day-gray';
+      dayToggle = !dayToggle; // Wechseln für den nächsten Tag
 
       if (dayData.length === 0) {
-        body.innerHTML += `<tr style="color:#bbb"><td></td><td>${label}</td><td colspan="3">-</td><td><button onclick="openEdit(null, '${dateStr}')" style="border:none; background:none; color:#0275d8; font-size:1.5em; padding:0 10px;">+</button></td></tr>`;
+        body.innerHTML += `<tr class="${dayClass}" style="color:#bbb">
+          <td></td><td>${label}</td><td colspan="3" style="font-style:italic; font-size:0.8em;">kein Eintrag</td>
+          <td><button onclick="openEdit(null, '${dateStr}')" style="border:none; background:none; color:#0275d8; font-size:1.4em;">+</button></td>
+        </tr>`;
       } else {
         const kommen = dayData.find(e => e.type === 'Kommen');
         const gehen = [...dayData].reverse().find(e => e.type === 'Gehen');
@@ -218,35 +225,35 @@
         dayData.forEach((e, i) => {
           const realIdx = entries.indexOf(e);
           if (e.type === 'Urlaub') totalMin += 468;
-          const rowClass = e.type === 'Frei' ? 'frei-row' : (e.type === 'Urlaub' ? 'urlaub-row' : '');
+          let rowClass = e.type === 'Frei' ? 'frei-row' : (e.type === 'Urlaub' ? 'urlaub-row' : dayClass);
           
           body.innerHTML += `<tr class="${rowClass}">
             <td><input type="checkbox" onchange="toggleRow(${realIdx})" ${selectedRows.has(realIdx) ? 'checked' : ''}></td>
-            <td>${i === 0 ? label : ''}</td>
+            <td style="font-weight:${i===0?'bold':'normal'}; border-top:${i===0?'1px solid #999':'none'};">
+                ${i === 0 ? label : ''}
+            </td>
             <td>${e.time || ''}</td>
             <td>${e.type}</td>
-            <td style="max-width:70px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${e.note || ''}</td>
+            <td class="note-cell">${e.note || ''}</td>
             <td>
-              <button onclick="openEdit(${realIdx})" style="border:none; background:none; font-size:1.2em;">✎</button>
-              ${i === 0 && dayDiff > 0 ? `<span class="tagstunden">${(dayDiff/60).toFixed(2).replace('.',',')}h</span>` : ''}
-              ${i === 0 && e.type === 'Urlaub' ? `<span class="tagstunden">7,80h</span>` : ''}
+              <div style="display:flex; flex-direction:column; align-items:center; gap:5px;">
+                  <button onclick="openEdit(${realIdx})" style="border:none; background:none; font-size:1.2em; padding:0;">✎</button>
+                  ${i === 0 && dayDiff > 0 ? `<span class="tagstunden">${(dayDiff/60).toFixed(2).replace('.',',')}h</span>` : ''}
+                  ${i === 0 && e.type === 'Urlaub' ? `<span class="tagstunden">7,80h</span>` : ''}
+              </div>
             </td>
           </tr>`;
         });
       }
     }
-    document.getElementById('totalDisplay').textContent = "Summe: " + (totalMin/60).toFixed(2).replace('.', ',') + " h";
+    document.getElementById('totalDisplay').textContent = "Monatssumme: " + (totalMin/60).toFixed(2).replace('.', ',') + " h";
     document.getElementById('selCount').textContent = selectedRows.size;
   }
 
   function addQuick(type) {
     const now = new Date();
-    entries.push({
-      date: now.toISOString().slice(0, 10),
-      time: now.toTimeString().slice(0, 5),
-      type: type,
-      note: type === 'Gehen' ? (prompt("Notiz?") || "") : ""
-    });
+    let note = type === 'Gehen' ? (prompt("Notiz (optional)?") || "") : "";
+    entries.push({ date: now.toISOString().slice(0, 10), time: now.toTimeString().slice(0, 5), type: type, note: note });
     save(); render(); renderMonthSelect();
   }
 
@@ -263,7 +270,7 @@
   function saveEdit() {
     const e = {
       date: document.getElementById('edDate').value,
-      time: document.getElementById('edTime').value,
+      time: (document.getElementById('edType').value==='Frei'||document.getElementById('edType').value==='Urlaub') ? "" : document.getElementById('edTime').value,
       type: document.getElementById('edType').value,
       note: document.getElementById('edNote').value
     };
@@ -301,7 +308,7 @@
 
   function bulkDelete() {
     if(selectedRows.size === 0) return;
-    if(confirm("Markierte löschen?")) {
+    if(confirm("Ausgewählte Einträge wirklich löschen?")) {
       entries = entries.filter((_, i) => !selectedRows.has(i));
       selectedRows.clear(); save(); render(); renderMonthSelect();
     }
@@ -310,35 +317,26 @@
   function changeMonth() { selectedMonth = document.getElementById('monatSelect').value; selectedRows.clear(); render(); }
   
   function clearMonth() {
-    if(confirm("Ganzen Monat leeren?") && prompt("Tippe LÖSCHEN") === "LÖSCHEN") {
+    if(confirm("Diesen Monat wirklich leeren?") && prompt("Tippe LÖSCHEN") === "LÖSCHEN") {
       entries = entries.filter(e => e.date && !e.date.startsWith(selectedMonth));
       save(); render(); renderMonthSelect();
     }
   }
 
   function importCSV(ev) {
-    const file = ev.target.files[0];
-    if (!file) return;
     const r = new FileReader();
     r.onload = (e) => {
-      const lines = e.target.result.split(/\r?\n/).filter(l => l.trim() !== "");
-      lines.slice(1).forEach(line => {
-        // Erkennt Komma oder Semikolon und entfernt Anführungszeichen
+      const rows = e.target.result.split("\n").slice(1);
+      rows.forEach(line => {
         let f = line.split(/[;,]/).map(s => s.replace(/^["']|["']$/g, '').trim());
         if(f.length >= 3) {
-          let d = f[0];
-          // Falls deutsches Format dd.mm.yyyy, umwandeln in yyyy-mm-dd
-          if(d.includes('.')) {
-            let b = d.split('.');
-            if(b.length === 3) d = `${b[2]}-${b[1]}-${b[0]}`;
-          }
+          let d = f[0]; if(d.includes('.')) { let b = d.split('.'); d = `${b[2]}-${b[1]}-${b[0]}`; }
           entries.push({date: d, time: f[1], type: f[2], note: f[3] || ""});
         }
       });
       save(); render(); renderMonthSelect();
-      alert("Import abgeschlossen!");
     };
-    r.readAsText(file);
+    r.readAsText(ev.target.files[0]);
   }
 
   function exportCSV() {
@@ -352,7 +350,7 @@
   function exportPDF() {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
-    doc.text("Zeiterfassung " + selectedMonth, 10, 10);
+    doc.text("Arbeitszeit " + selectedMonth, 10, 10);
     let y = 20;
     entries.filter(e => e.date && e.date.startsWith(selectedMonth)).forEach(e => {
       doc.text(`${e.date} | ${e.time} | ${e.type} | ${e.note}`, 10, y);
