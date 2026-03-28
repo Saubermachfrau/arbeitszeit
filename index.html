@@ -44,7 +44,7 @@
 
     /* Tag-Farben (Zebra-Look pro TAG) */
     .day-white { background-color: #ffffff; }
-    .day-gray { background-color: #f9f9f9; }
+    .day-gray { background-color: #e0e0e0; } /* DEUTLICH DUNKLERES GRAU */
     .frei-row td { background-color: #fff9c4 !important; }
     .urlaub-row td { background-color: #e8f9e7 !important; }
     
@@ -207,9 +207,9 @@
       dayToggle = !dayToggle; // Wechseln für den nächsten Tag
 
       if (dayData.length === 0) {
-        body.innerHTML += `<tr class="${dayClass}" style="color:#bbb">
+        body.innerHTML += `<tr class="${dayClass}" style="color:#777">
           <td></td><td>${label}</td><td colspan="3" style="font-style:italic; font-size:0.8em;">kein Eintrag</td>
-          <td><button onclick="openEdit(null, '${dateStr}')" style="border:none; background:none; color:#0275d8; font-size:1.4em;">+</button></td>
+          <td><button onclick="openEdit(null, '${dateStr}')" style="border:none; background:none; color:#0275d8; font-size:1.4em; padding:0;">+</button></td>
         </tr>`;
       } else {
         const kommen = dayData.find(e => e.type === 'Kommen');
