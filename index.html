@@ -99,6 +99,7 @@
     </table>
     <div id="monatsstunden" class="summary-cell" style="margin: 1em 0 0 0;"></div>
     <div class="tools">
+      <button onclick="openNew()">Manueller Eintrag</button>
       <button onclick="exportCSV()">Als CSV exportieren</button>
       <button onclick="exportPDF()">Als PDF exportieren</button>
       <button onclick="deleteMonthEntries()" style="background:#d9534f; color:white;">Diesen Monat löschen</button>
@@ -108,12 +109,11 @@
       </label>
     </div>
     <div style="margin-top:2em; font-size:0.97em; color:#888;">
-      <b>Hinweis:</b> Die Daten werden lokal auf deinem Gerät gespeichert (Browser LocalStorage).<br>
+      <b>Hinweis:</b> Die Daten werden lokal auf deinem Gerät gespeichert (Browser LocalStorage).
       Über Export/Import kannst du Backups machen und auf andere Geräte übertragen. Lösche regelmäßig alte Monate, um Speicher zu sparen!
     </div>
   </div>
 
-  <!-- Von-bis Modal für Frei/Urlaub -->
   <div class="fromto-modal-bg" id="fromto-modal-bg" onclick="closeFromToModal(event)">
     <div class="fromto-modal" id="fromto-modal" onclick="event.stopPropagation();">
       <form onsubmit="submitFromToModal(event)">
@@ -132,13 +132,12 @@
     </div>
   </div>
 
-  <!-- Edit Modal -->
   <div id="editModal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:#0008; align-items:center; justify-content:center; z-index:10;">
     <div style="background:#fff; padding:2em; border-radius:8px; max-width:350px; margin:auto;">
-      <h3>Eintrag bearbeiten</h3>
+      <h3 id="modalTitle">Eintrag bearbeiten</h3>
       <label>Datum: <input type="date" id="editDate"></label><br><br>
       <label>Zeit: <input type="time" id="editTime"></label><br><br>
-      <label>Art: 
+      <label>Art: <br>
         <select id="editType">
           <option value="Kommen">Kommen</option>
           <option value="Gehen">Gehen</option>
@@ -148,7 +147,7 @@
       </label><br><br>
       <label>Notiz:<br>
         <textarea id="editNote" rows="2" style="width:100%;"></textarea>
-      </label><br>
+      </label><br><br>
       <div style="text-align:right; margin-top:1em;">
         <button onclick="closeModal()">Abbrechen</button>
         <button onclick="saveEdit()">Speichern</button>
@@ -166,7 +165,6 @@
     let selectedMonth = null;
     let selectedEntries = new Set();
 
-    // Hilfsfunktion: ISO nach dd.mm.yyyy
     function formatDateDDMMYYYY(iso) {
       const [y, m, d] = iso.split("-");
       return `${d}.${m}.${y}`;
@@ -342,7 +340,6 @@
       return (h+(m/60)).toLocaleString("de-DE", {minimumFractionDigits:2, maximumFractionDigits:2}).replace('.', ',') + " h";
     }
 
-    // --- SCHÖNES PDF ---
     function exportPDF() {
       const { jsPDF } = window.jspdf;
       const doc = new jsPDF();
@@ -352,7 +349,6 @@
       const tableColumns = ["Datum (Tag)", "Zeit", "Art", "Notiz"];
       const tableRows = [];
 
-      // Für die Stundenberechnung und ordentliche Darstellung
       let dateMap = {};
       monthEntries.forEach(e => {
         if (!dateMap[e.date]) dateMap[e.date] = [];
@@ -361,7 +357,6 @@
 
       Object.keys(dateMap).sort().forEach(date => {
         const eintraege = dateMap[date];
-        // Wenn nur 1 Eintrag: Urlaub, Frei, Kommen oder Gehen
         if (eintraege.length === 1) {
           tableRows.push([
             `${formatDateDDMMYYYY(date)} (${getWeekday(date)})`,
@@ -370,7 +365,6 @@
             eintraege[0].note || ""
           ]);
         } else {
-          // Mehrere Einträge (Kommen/Gehen), jeweils eigene Zeile
           eintraege.sort((a,b)=>a.time.localeCompare(b.time)).forEach(e=>{
             tableRows.push([
               `${formatDateDDMMYYYY(date)} (${getWeekday(date)})`,
@@ -382,24 +376,20 @@
         }
       });
 
-      // Farben
       const headerColor = "#e5e5e5";
       const freiColor = "#fff9c4";
       const urlaubColor = "#c8f7c5";
       const zebraColor = "#f7f7f7";
 
-      // Überschrift
       doc.setFontSize(20);
       doc.setFont("helvetica", "bold");
       doc.text(monthText, 14, 18);
       doc.setFontSize(12);
       doc.setFont("helvetica", "normal");
 
-      // Tabelle zeichnen
       let startY = 28;
       const cellHeight = 9;
       const colWidths = [50, 20, 28, 80];
-      // Kopf
       let x = 14;
       doc.setFillColor(headerColor);
       doc.setFont("helvetica", "bold");
@@ -411,24 +401,19 @@
       doc.setFont("helvetica", "normal");
       startY += cellHeight;
 
-      // Zeilen
       let totalMinutes = 0;
-      let lastDate = "";
       tableRows.forEach((row, idx) => {
         x = 14;
-        // Typ für Farbe bestimmen
         const type = row[2];
         let fill = idx % 2 === 1 ? zebraColor : "#fff";
         if (type === "Frei") fill = freiColor;
         if (type === "Urlaub") fill = urlaubColor;
-        // Stundenberechnung
         let stundenText = "";
         let date = row[0].split(" ")[0];
         if (type === "Urlaub") {
           totalMinutes += URLAUB_MINUTEN_PRO_TAG;
           stundenText = "7,80 h";
         } else if (type === "Kommen") {
-          // Suche Kommen/Gehen für denselben Tag in dateMap
           let tag = Object.keys(dateMap).find(d => formatDateDDMMYYYY(d) === date);
           if (tag) {
             const kommen = dateMap[tag].find(ent => ent.type === "Kommen");
@@ -446,7 +431,6 @@
           doc.setFillColor(fill);
           doc.rect(x, startY, colWidths[i], cellHeight, "F");
           let value = row[i];
-          // Stunden in die Notizspalte
           if (i === 3 && stundenText) value = (value ? value + "  " : "") + "⏱ " + stundenText;
           doc.text(String(value), x + 2, startY + 6);
           x += colWidths[i];
@@ -458,15 +442,10 @@
         }
       });
 
-      // Monatsstunden
       doc.setFont("helvetica", "bold");
       doc.setFontSize(14);
       doc.setTextColor("#005900");
-      doc.text(
-        "Monatssumme: " + formatStunden(totalMinutes),
-        14,
-        startY + 12
-      );
+      doc.text("Monatssumme: " + formatStunden(totalMinutes), 14, startY + 12);
       doc.setTextColor("#000");
       doc.save(`Arbeitszeiten_${month}.pdf`);
     }
@@ -480,7 +459,6 @@
         const lines = contents.split(/\r?\n/).map(line => line.trim()).filter(line => line.length > 0);
         if (lines.length < 2) { alert("Keine Daten in der Datei."); return; }
         const header = lines[0].split(';').map(h=>h.replace(/"/g,'').trim().toLowerCase());
-        // Erlaube auch dd.mm.yyyy beim Import
         function parseDatum(raw) {
           if (/^\d{2}\.\d{2}\.\d{4}$/.test(raw)) {
             const [d,m,y] = raw.split(".");
@@ -525,8 +503,6 @@
       document.getElementById('month').textContent = formatMonthText(selectedMonth);
 
       const days = getAllDaysOfMonth(selectedMonth);
-
-      // Map: Datum => Array von Einträgen
       let map = {};
       entries.forEach((e, i) => {
         if(!map[e.date]) map[e.date] = [];
@@ -544,7 +520,8 @@
           tr.innerHTML = `
             <td></td>
             <td>${formatDateDDMMYYYY(day)} (${getWeekday(day)})</td>
-            <td colspan="4" class="leer">Keine Einträge vorhanden</td>
+            <td colspan="3" class="leer">Keine Einträge vorhanden</td>
+            <td><button class="edit-btn" title="Eintrag hinzufügen" onclick="openNew('${day}')">+</button></td>
           `;
           tbody.appendChild(tr);
         } else if (eintraege.length === 1 && eintraege[0].type === "Frei") {
@@ -553,13 +530,9 @@
           const tr = document.createElement('tr');
           tr.className = `frei-row ${trennClass}`;
           tr.innerHTML = `
-            <td>
-              <input type="checkbox" class="row-checkbox" data-idx="${e.idx}" ${isChecked ? "checked" : ""} onclick="onRowCheckboxChange(${e.idx}, this)">
-            </td>
+            <td><input type="checkbox" class="row-checkbox" data-idx="${e.idx}" ${isChecked ? "checked" : ""} onclick="onRowCheckboxChange(${e.idx}, this)"></td>
             <td>${formatDateDDMMYYYY(e.date)} (${getWeekday(e.date)})</td>
-            <td></td>
-            <td>Frei</td>
-            <td></td>
+            <td></td><td>Frei</td><td></td>
             <td>
               <button class="edit-btn" title="Bearbeiten" onclick="openEdit(${e.idx})">&#9998;</button>
               <button class="delete-btn" title="Löschen" onclick="deleteEntry(${e.idx})">&#128465;</button>
@@ -573,13 +546,9 @@
           const tr = document.createElement('tr');
           tr.className = `urlaub-row ${trennClass}`;
           tr.innerHTML = `
-            <td>
-              <input type="checkbox" class="row-checkbox" data-idx="${e.idx}" ${isChecked ? "checked" : ""} onclick="onRowCheckboxChange(${e.idx}, this)">
-            </td>
+            <td><input type="checkbox" class="row-checkbox" data-idx="${e.idx}" ${isChecked ? "checked" : ""} onclick="onRowCheckboxChange(${e.idx}, this)"></td>
             <td>${formatDateDDMMYYYY(e.date)} (${getWeekday(e.date)})</td>
-            <td></td>
-            <td>Urlaub</td>
-            <td></td>
+            <td></td><td>Urlaub</td><td></td>
             <td>
               <button class="edit-btn" title="Bearbeiten" onclick="openEdit(${e.idx})">&#9998;</button>
               <button class="delete-btn" title="Löschen" onclick="deleteEntry(${e.idx})">&#128465;</button>
@@ -604,13 +573,9 @@
             const tr = document.createElement('tr');
             tr.className = j === 0 ? trennClass : "tag-no-trenner";
             tr.innerHTML = `
-              <td>
-                <input type="checkbox" class="row-checkbox" data-idx="${e.idx}" ${isChecked ? "checked" : ""} onclick="onRowCheckboxChange(${e.idx}, this)">
-              </td>
+              <td><input type="checkbox" class="row-checkbox" data-idx="${e.idx}" ${isChecked ? "checked" : ""} onclick="onRowCheckboxChange(${e.idx}, this)"></td>
               <td>${formatDateDDMMYYYY(e.date)} (${getWeekday(e.date)})</td>
-              <td>${e.time}</td>
-              <td>${e.type}</td>
-              <td class="note">${e.note || ''}</td>
+              <td>${e.time}</td><td>${e.type}</td><td class="note">${e.note || ''}</td>
               <td>
                 <button class="edit-btn" title="Bearbeiten" onclick="openEdit(${e.idx})">&#9998;</button>
                 <button class="delete-btn" title="Löschen" onclick="deleteEntry(${e.idx})">&#128465;</button>
@@ -622,19 +587,14 @@
         }
       });
 
-      document.getElementById('monatsstunden').innerHTML =
-        "Monatssumme: " + formatStunden(gesamtMinuten);
-
+      document.getElementById('monatsstunden').innerHTML = "Monatssumme: " + formatStunden(gesamtMinuten);
       updateBulkCount();
       updateSelectAllCheckbox();
     }
 
     function onRowCheckboxChange(idx, checkbox) {
-      if (checkbox.checked) {
-        selectedEntries.add(idx);
-      } else {
-        selectedEntries.delete(idx);
-      }
+      if (checkbox.checked) selectedEntries.add(idx);
+      else selectedEntries.delete(idx);
       updateBulkCount();
       updateSelectAllCheckbox();
     }
@@ -651,41 +611,25 @@
 
     function updateBulkCount() {
       const span = document.getElementById('bulkCount');
-      if (selectedEntries.size > 0) {
-        span.textContent = selectedEntries.size + " Eintrag" + (selectedEntries.size === 1 ? "" : "e") + " ausgewählt";
-      } else {
-        span.textContent = "";
-      }
+      span.textContent = selectedEntries.size > 0 ? selectedEntries.size + " Eintrag" + (selectedEntries.size === 1 ? "" : "e") + " ausgewählt" : "";
     }
 
     function updateSelectAllCheckbox() {
       const allCbs = document.querySelectorAll('.row-checkbox');
       const master = document.getElementById('selectAll');
       if (allCbs.length === 0) {
-        master.checked = false;
-        master.indeterminate = false;
-        master.disabled = true;
+        master.checked = false; master.indeterminate = false; master.disabled = true;
       } else {
         master.disabled = false;
         const checkedCount = Array.from(allCbs).filter(cb => cb.checked).length;
-        if (checkedCount === 0) {
-          master.checked = false;
-          master.indeterminate = false;
-        } else if (checkedCount === allCbs.length) {
-          master.checked = true;
-          master.indeterminate = false;
-        } else {
-          master.checked = false;
-          master.indeterminate = true;
-        }
+        if (checkedCount === 0) { master.checked = false; master.indeterminate = false; }
+        else if (checkedCount === allCbs.length) { master.checked = true; master.indeterminate = false; }
+        else { master.checked = false; master.indeterminate = true; }
       }
     }
 
     function bulkDelete() {
-      if (selectedEntries.size === 0) {
-        alert("Bitte wähle mindestens einen Eintrag aus.");
-        return;
-      }
+      if (selectedEntries.size === 0) { alert("Bitte wähle mindestens einen Eintrag aus."); return; }
       if (!confirm(`Sollen die ${selectedEntries.size} ausgewählten Einträge unwiderruflich gelöscht werden?`)) return;
       entries = entries.filter((e, i) => !selectedEntries.has(i));
       selectedEntries.clear();
@@ -707,16 +651,10 @@
     function deleteMonthEntries() {
       const month = selectedMonth;
       const monthEntries = entries.filter(e => e.date.startsWith(month));
-      if(monthEntries.length === 0) {
-        alert("Keine Einträge für diesen Monat vorhanden.");
-        return;
-      }
-      if(confirm(`Alle Einträge für ${formatMonthText(month)} unwiderruflich löschen?\n\nTipp: Exportiere vorher die Daten als CSV oder PDF, falls du sie später nochmal brauchst.`)) {
+      if(monthEntries.length === 0) { alert("Keine Einträge für diesen Monat vorhanden."); return; }
+      if(confirm(`Alle Einträge für ${formatMonthText(month)} unwiderruflich löschen?`)) {
         const check = prompt('Sicherheitsabfrage: Bitte tippe LÖSCHEN (in Großbuchstaben), um das Löschen zu bestätigen.');
-        if (check !== "LÖSCHEN") {
-          alert("Löschen abgebrochen. Sicherheitsabfrage nicht korrekt.");
-          return;
-        }
+        if (check !== "LÖSCHEN") { alert("Löschen abgebrochen."); return; }
         entries = entries.filter(e => !e.date.startsWith(month));
         selectedEntries.clear();
         saveEntries();
@@ -728,15 +666,28 @@
     function openEdit(idx) {
       editIndex = idx;
       const e = entries[idx];
+      document.getElementById('modalTitle').textContent = "Eintrag bearbeiten";
       document.getElementById('editDate').value = e.date;
       document.getElementById('editTime').value = e.time;
       document.getElementById('editType').value = e.type;
       document.getElementById('editNote').value = e.note || '';
       document.getElementById('editModal').style.display = 'flex';
     }
+
+    function openNew(optDate) {
+      editIndex = null;
+      document.getElementById('modalTitle').textContent = "Neuer Eintrag";
+      document.getElementById('editDate').value = optDate || new Date().toISOString().slice(0,10);
+      document.getElementById('editTime').value = "08:00";
+      document.getElementById('editType').value = "Kommen";
+      document.getElementById('editNote').value = "";
+      document.getElementById('editModal').style.display = 'flex';
+    }
+
     function closeModal() {
       document.getElementById('editModal').style.display = 'none';
     }
+
     function saveEdit() {
       const date = document.getElementById('editDate').value;
       const time = document.getElementById('editTime').value;
@@ -746,15 +697,12 @@
         alert("Datum und (außer bei Frei/Urlaub) Zeit müssen ausgefüllt sein!");
         return;
       }
-      if(type==="Frei" && entries.some((e,i)=>i!==editIndex && e.date===date && e.type!=="Frei")) {
-        alert("Für diesen Tag ist bereits ein anderer Eintrag vorhanden.");
-        return;
-      }
-      if(type==="Urlaub" && entries.some((e,i)=>i!==editIndex && e.date===date && e.type!=="Urlaub")) {
-        alert("Für diesen Tag ist bereits ein anderer Eintrag vorhanden.");
-        return;
-      }
-      entries[editIndex] = {date, time: (type==="Frei"||type==="Urlaub")?"":time, type, note};
+      
+      const newEntry = {date, time: (type==="Frei"||type==="Urlaub")?"":time, type, note};
+      
+      if (editIndex === null) entries.push(newEntry);
+      else entries[editIndex] = newEntry;
+
       saveEntries();
       if (!date.startsWith(selectedMonth)) {
         selectedMonth = date.slice(0,7);
@@ -763,11 +711,11 @@
       renderEntries();
       closeModal();
     }
+
     function exportCSV() {
       const month = selectedMonth;
       const rows = [['Datum','Zeit','Art','Notiz']];
       entries.filter(e => e.date.startsWith(month)).forEach(e => {
-        // dd.mm.yyyy für Export
         rows.push([formatDateDDMMYYYY(e.date), e.time, e.type, e.note.replace(/"/g, '""')]);
       });
       let csv = rows.map(r => r.map(f=>`"${f}"`).join(';')).join('\r\n');
@@ -782,18 +730,15 @@
       URL.revokeObjectURL(url);
     }
 
-    // Initialisierung
     loadEntries();
     renderMonthSelect();
     renderEntries();
 
     window.onclick = function(event) {
-      // Von-bis Modal außerhalb schließen
-      const modal = document.getElementById('fromto-modal-bg');
-      if (event.target == modal) closeFromToModal();
-      // Edit Modal außerhalb schließen
-      const editModal = document.getElementById('editModal');
-      if (event.target == editModal) closeModal();
+      const fb = document.getElementById('fromto-modal-bg');
+      if (event.target == fb) closeFromToModal();
+      const ed = document.getElementById('editModal');
+      if (event.target == ed) closeModal();
     }
   </script>
 </body>
